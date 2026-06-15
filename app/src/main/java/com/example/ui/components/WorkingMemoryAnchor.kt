@@ -14,14 +14,20 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun WorkingMemoryAnchor(
     text: String,
-    onTextChanged: (String) -> Unit
+    onTextChanged: (String) -> Unit,
+    name: String = ""
 ) {
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
 
     OutlinedTextField(
         value = text,
         onValueChange = onTextChanged,
-        placeholder = { Text("What are you doing RIGHT NOW? (max 3 words)") },
+        placeholder = {
+            Text(
+                if (name.isNotBlank()) "What are you doing right now, $name?"
+                else "What are you doing RIGHT NOW?"
+            )
+        },
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,

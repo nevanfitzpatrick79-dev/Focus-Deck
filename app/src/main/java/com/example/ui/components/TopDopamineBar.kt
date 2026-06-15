@@ -47,8 +47,10 @@ fun TopDopamineBar(
             ) {
                 // Level & XP
                 Column(modifier = Modifier.weight(1f)) {
+                    val equippedTitle = com.example.data.AvailableTitles
+                        .find { it.id == state.equippedTitleId }
                     Text(
-                        text = "Level ${state.level}",
+                        text = "Lv ${state.level}${equippedTitle?.let { " · ${it.title}" } ?: ""}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
