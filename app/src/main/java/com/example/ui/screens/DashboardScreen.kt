@@ -29,7 +29,8 @@ fun DashboardScreen(
     val gamificationState by viewModel.gamificationState.collectAsState()
     val tasks by viewModel.tasks.collectAsState()
     val timerState by viewModel.focusTimerState.collectAsState()
-    val workingMemory by viewModel.workingMemoryAnchor.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val workingMemory = gamificationState.workingMemoryAnchor
     val snackbarMessage by viewModel.snackbarMessage.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -55,7 +56,8 @@ fun DashboardScreen(
                 
                 WorkingMemoryAnchor(
                     text = workingMemory,
-                    onTextChanged = viewModel::updateWorkingMemory
+                    onTextChanged = viewModel::updateWorkingMemory,
+                    name = gamificationState.userName
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -63,13 +65,19 @@ fun DashboardScreen(
                 // Bento Layout equivalent
                 FocusTimer(
                     state = timerState,
+                    preferredMinutes = gamificationState.preferredFocusMinutes,
                     onStart = viewModel::startTimer,
                     onStop = viewModel::stopTimer
                 )
                 
                 TaskBoard(
                     tasks = tasks,
-                    onAddTask = viewModel::addTask,
+                    selectedCategory = selectedCategory,
+                    enabledCategories = gamificationState.enabledCategories,
+                    onCategorySelected = viewModel::setCategory,
+                    onAddTask = { title, priority, category, dueDate ->
+                        viewModel.addTask(title, priority, category, dueDate)
+                    },
                     onToggleTask = viewModel::toggleTask,
                     onDeleteTask = viewModel::deleteTask,
                     modifier = Modifier.weight(1f)
