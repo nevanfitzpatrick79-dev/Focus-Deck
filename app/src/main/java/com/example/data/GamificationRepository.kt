@@ -35,6 +35,8 @@ data class GamificationState(
     val lastActiveDate: String = "",
     val equippedTitleId: String = "apprentice",
     val unlockedTitleIds: Set<String> = setOf("apprentice"),
+    val discoveredEggs: Set<String> = emptySet(),
+    val lastMysteryBoxDate: String = "",
     val userName: String = "",
     val preferredFocusMinutes: Int = 25,
     val peakEnergyTime: String = "Morning",
@@ -223,7 +225,10 @@ val AvailableTitles = listOf(
     TitleReward("flow_rider", "Flow Rider", "You've found your rhythm", 300),
     TitleReward("chaos_calmer", "Chaos Calmer", "Order from disorder", 500),
     TitleReward("hyperfocus_hero", "Hyperfocus Hero", "Power and precision", 800),
-    TitleReward("executive_legend", "Executive Legend", "Peak performance", 1200)
+    TitleReward("executive_legend", "Executive Legend", "Peak performance", 1200),
+    TitleReward("hacker", "Hacker", "You found a secret.", 0),
+    TitleReward("night_owl", "Night Owl", "The app knows you were up late.", 0),
+    TitleReward("hyperfocused", "Hyperfocused", "You know this feeling.", 0)
 )
 
 data class Badge(
@@ -441,6 +446,8 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
     private val TOTAL_GAMES_KEY = intPreferencesKey("total_games_played")
     private val BADGES_KEY = stringPreferencesKey("earned_badges")
     private val TUTORIAL_KEY = booleanPreferencesKey("tutorial_completed")
+    private val EGGS_KEY = stringPreferencesKey("discovered_eggs")
+    private val MYSTERY_DATE_KEY = stringPreferencesKey("mystery_box_date")
 
     val stateFlow: Flow<GamificationState> = dataStore.data.map { prefs ->
         GamificationState(
@@ -457,6 +464,8 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
             lastActiveDate = prefs[LAST_DATE_KEY] ?: "",
             equippedTitleId = prefs[TITLE_KEY] ?: "apprentice",
             unlockedTitleIds = prefs[UNLOCKED_TITLES_KEY]?.split(",")?.toSet() ?: setOf("apprentice"),
+            discoveredEggs = prefs[EGGS_KEY]?.split(",")?.filter { it.isNotEmpty() }?.toSet() ?: emptySet(),
+            lastMysteryBoxDate = prefs[MYSTERY_DATE_KEY] ?: "",
             userName = prefs[USER_NAME_KEY] ?: "",
             preferredFocusMinutes = prefs[FOCUS_MINS_KEY] ?: 25,
             peakEnergyTime = prefs[PEAK_ENERGY_KEY] ?: "Morning",
@@ -642,6 +651,13 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    suspend fun unlockHiddenTitle(titleId: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[UNLOCKED_TITLES_KEY]?.split(",")?.toSet() ?: setOf("apprentice")
+            prefs[UNLOCKED_TITLES_KEY] = (current + titleId).joinToString(",")
+        }
+    }
+
     suspend fun equipTitle(titleId: String) {
         dataStore.edit { prefs ->
             prefs[TITLE_KEY] = titleId
@@ -708,6 +724,47 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { prefs ->
             prefs[TOTAL_GAMES_KEY] = (prefs[TOTAL_GAMES_KEY] ?: 0) + 1
         }
+    }
+
+    // Returns true if newly discovered (first time)
+    suspend fun discoverEgg(eggId: String, dgReward: Int = 5): Boolean {
+        val prefs = dataStore.data.first()
+        val current = prefs[EGGS_KEY]?.split(",")
+            ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+        if (current.contains(eggId)) return false
+        dataStore.edit { p ->
+            p[EGGS_KEY] = (current + eggId).joinToString(",")
+        }
+        if (dgReward > 0) addReward(xpReward = 0, dgReward = dgReward)
+        return true
+    }
+
+    suspend fun claimMysteryBox(): String {
+        val today = getTodayDateString()
+        val prefs = dataStore.data.first()
+        val lastDate = prefs[MYSTERY_DATE_KEY] ?: ""
+        if (lastDate == today) return "already_claimed"
+
+        // Random reward from pool
+        val rewards = listOf(
+            "dg_10" to 10,
+            "dg_15" to 15,
+            "dg_5" to 5,
+            "dg_20" to 20,
+            "dg_8" to 8
+        )
+        val seed = today.replace("-","").toLong()
+        val (_, dgAmount) = rewards[(seed % rewards.size).toInt()]
+
+        dataStore.edit { p ->
+            p[MYSTERY_DATE_KEY] = today
+        }
+        addReward(xpReward = 5, dgReward = dgAmount)
+        return "dg_$dgAmount"
+    }
+
+    fun isMysteryBoxAvailable(state: GamificationState): Boolean {
+        return state.lastMysteryBoxDate != getTodayDateString()
     }
 
     // Returns the badge ID if newly earned, null otherwise

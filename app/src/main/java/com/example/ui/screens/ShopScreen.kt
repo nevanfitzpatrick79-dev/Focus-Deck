@@ -13,6 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -137,6 +140,63 @@ fun ShopScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
+                            }
+                            
+                            item {
+                                val mysteryAvailable = gamificationState.lastMysteryBoxDate !=
+                                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (mysteryAvailable)
+                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                        else
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ),
+                                    border = if (mysteryAvailable) androidx.compose.foundation.BorderStroke(
+                                        1.5.dp, MaterialTheme.colorScheme.secondary
+                                    ) else null,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(if (mysteryAvailable) "📦" else "🔒",
+                                                fontSize = 32.sp,
+                                                modifier = Modifier.padding(end = 12.dp))
+                                            Column {
+                                                Text("Daily Mystery Box",
+                                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                Text(
+                                                    if (mysteryAvailable)
+                                                        "Something good inside. Resets daily."
+                                                    else
+                                                        "Come back tomorrow for a new one.",
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                                                )
+                                                if (mysteryAvailable) {
+                                                    Text("Cost: 30 💎 DG", fontSize = 12.sp,
+                                                        color = Color(0xFFFFD700),
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(top = 2.dp))
+                                                }
+                                            }
+                                        }
+                                        if (mysteryAvailable) {
+                                            Button(
+                                                onClick = { viewModel.claimMysteryBox() },
+                                                enabled = gamificationState.dopamineGold >= 30
+                                            ) {
+                                                Text("Open")
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             
                             // Show a note if any activities were filtered

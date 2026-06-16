@@ -106,6 +106,9 @@ fun TutorialScreen(
                                 onValueChange = {
                                     anchorText = it
                                     anchorSaved = false
+                                    if (it.lowercase().contains("hyperfocus")) {
+                                        viewModel.checkAnchorEasterEgg(it)
+                                    }
                                 },
                                 placeholder = { Text("e.g. Setting up Focus Deck") },
                                 modifier = Modifier.fillMaxWidth(),

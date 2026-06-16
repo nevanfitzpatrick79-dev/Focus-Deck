@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -49,6 +50,11 @@ fun DashboardScreen(
 
         ThemeBackgroundLayer(themeName = gamificationState.currentTheme)
 
+        LaunchedEffect(Unit) {
+            viewModel.checkMidnightEgg()
+            viewModel.checkHalloweenEgg()
+        }
+
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             topBar = {
@@ -56,7 +62,9 @@ fun DashboardScreen(
                     state = gamificationState,
                     onBreakClick = onNavigateToShop, // Go to shop for rewards
                     onSettingsClick = onNavigateToSettings,
-                    onBadgesClick = onNavigateToBadges
+                    onBadgesClick = onNavigateToBadges,
+                    onStreakLongPress = viewModel::onStreakLongPress,
+                    onTitleTapped = viewModel::onTitleTapped
                 )
             }
         ) { paddingValues ->
@@ -69,7 +77,10 @@ fun DashboardScreen(
                 
                 WorkingMemoryAnchor(
                     text = workingMemory,
-                    onTextChanged = viewModel::updateWorkingMemory,
+                    onTextChanged = { text ->
+                        viewModel.updateWorkingMemory(text)
+                        viewModel.checkAnchorEasterEgg(text)
+                    },
                     name = gamificationState.userName
                 )
 
@@ -97,8 +108,12 @@ fun DashboardScreen(
                             )
                         }
                         // Tasks completed today
+                        val taskLabel = when {
+                            gamificationState.totalTasksCompleted >= 100 -> "✅ 💯 $completedToday done"
+                            else -> "✅ $completedToday done"
+                        }
                         SummaryChip(
-                            "✅ $completedToday done",
+                            taskLabel,
                             modifier = Modifier.weight(1f)
                         )
                         // Active tasks

@@ -600,6 +600,101 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // ——————————————————————————————————————————————————————————
+    // Easter Eggs & Mystery Box
+    // ——————————————————————————————————————————————————————————
+
+    // Easter egg: long-press on streak fires confetti and grants DG
+    fun onStreakLongPress() {
+        viewModelScope.launch {
+            val isNew = gamificationRepository.discoverEgg("streak_longpress", dgReward = 5)
+            if (isNew) {
+                showSnackbar("✨ Secret found! +5 Dopamine Gold")
+                // Trigger confetti
+                showConfetti.value = true
+                kotlinx.coroutines.delay(3000)
+                showConfetti.value = false
+            } else {
+                showSnackbar("🔥 Keep that streak going!")
+            }
+        }
+    }
+
+    private var titleTapCount = 0
+
+    // Easter egg: tap title text 7 times to unlock Hacker title
+    fun onTitleTapped() {
+        titleTapCount++
+        if (titleTapCount >= 7) {
+            titleTapCount = 0
+            viewModelScope.launch {
+                val isNew = gamificationRepository.discoverEgg("hacker_title", dgReward = 0)
+                if (isNew) {
+                    gamificationRepository.unlockHiddenTitle("hacker")
+                    showSnackbar("💻 Secret unlocked: Hacker title available in Shop!")
+                }
+            }
+        }
+    }
+
+    // Easter egg: midnight bonus
+    fun checkMidnightEgg() {
+        val hour = java.util.Calendar.getInstance()
+            .get(java.util.Calendar.HOUR_OF_DAY)
+        val minute = java.util.Calendar.getInstance()
+            .get(java.util.Calendar.MINUTE)
+        if (hour == 0 && minute < 5) {
+            viewModelScope.launch {
+                val isNew = gamificationRepository.discoverEgg("midnight", dgReward = 10)
+                if (isNew) {
+                    gamificationRepository.unlockHiddenTitle("night_owl")
+                    showSnackbar("🌙 Night Owl! +10 DG and a secret title unlocked.")
+                }
+            }
+        }
+    }
+
+    // Easter egg: Halloween
+    fun checkHalloweenEgg() {
+        val cal = java.util.Calendar.getInstance()
+        val isHalloween = cal.get(java.util.Calendar.MONTH) == 9 &&
+            cal.get(java.util.Calendar.DAY_OF_MONTH) == 31
+        if (isHalloween) {
+            viewModelScope.launch {
+                gamificationRepository.discoverEgg("halloween", dgReward = 31)
+                showSnackbar("🎃 Happy Halloween! +31 DG")
+            }
+        }
+    }
+
+    // Easter egg: hyperfocus anchor text
+    fun checkAnchorEasterEgg(text: String) {
+        if (text.lowercase().contains("hyperfocus")) {
+            viewModelScope.launch {
+                val isNew = gamificationRepository.discoverEgg("hyperfocus_anchor", dgReward = 10)
+                if (isNew) {
+                    gamificationRepository.unlockHiddenTitle("hyperfocused")
+                    showSnackbar("🧠 Oh, we know this one. +10 DG and a secret title.")
+                }
+            }
+        }
+    }
+
+    // Mystery box
+    fun claimMysteryBox() {
+        viewModelScope.launch {
+            val result = gamificationRepository.claimMysteryBox()
+            when {
+                result == "already_claimed" ->
+                    showSnackbar("Mystery Box resets tomorrow!")
+                result.startsWith("dg_") -> {
+                    val amount = result.removePrefix("dg_").toIntOrNull() ?: 0
+                    showSnackbar("📦 Mystery Box: +$amount Dopamine Gold!")
+                }
+            }
+        }
+    }
 }
 
 data class MergeGameUiState(

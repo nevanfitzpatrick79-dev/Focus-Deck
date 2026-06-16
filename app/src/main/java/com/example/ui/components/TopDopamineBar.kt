@@ -2,6 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,12 +30,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.statusBarsPadding
 import com.example.data.GamificationState
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopDopamineBar(
     state: GamificationState,
     onBreakClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onBadgesClick: () -> Unit
+    onBadgesClick: () -> Unit,
+    onStreakLongPress: () -> Unit = {},
+    onTitleTapped: () -> Unit = {}
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -57,7 +62,8 @@ fun TopDopamineBar(
                         text = "Lv ${state.level}${equippedTitle?.let { " · ${it.title}" } ?: ""}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onTitleTapped() }
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     val currentXp = state.xp.toFloat()
@@ -75,10 +81,17 @@ fun TopDopamineBar(
                 // Stats Map
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "🔥 ${state.dailyFlowStreak}",
+                        text = if (state.dailyFlowStreak >= 7)
+                            "🌟🔥 ${state.dailyFlowStreak}"
+                        else
+                            "🔥 ${state.dailyFlowStreak}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF9800)
+                        color = Color(0xFFFF9800),
+                        modifier = Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = onStreakLongPress
+                        )
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     
