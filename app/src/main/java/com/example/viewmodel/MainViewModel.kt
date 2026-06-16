@@ -12,10 +12,61 @@ import com.example.data.dataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+
+enum class PuzzlePhase {
+    SHOWING,    // Pattern is visible — memorise it
+    RECALLING,  // Pattern hidden — tap to recreate
+    CORRECT,    // Brief success flash before next round
+    WRONG,      // Brief error flash, retry same round
+    COMPLETE    // Game over
+}
+
+data class PuzzleGameUiState(
+    val grid: List<Boolean> = List(9) { false }, // 3x3, true=lit
+    val playerGrid: List<Boolean> = List(9) { false }, // player's taps
+    val phase: PuzzlePhase = PuzzlePhase.SHOWING,
+    val level: Int = 1,           // cells to remember = level + 1
+    val score: Int = 0,
+    val timeRemainingSeconds: Int = 180,
+    val themeName: String = "Cosmic Slate",
+    val isActive: Boolean = true,
+    val showTimer: Int = 2        // seconds to show pattern
+) {
+    val cellsToShow: Int get() = (level + 1).coerceAtMost(9)
+
+    companion object {
+        fun newGame(themeName: String): PuzzleGameUiState {
+            val state = PuzzleGameUiState(themeName = themeName)
+            return state.withNewPattern()
+        }
+    }
+
+    fun withNewPattern(): PuzzleGameUiState {
+        val indices = (0..8).shuffled().take(cellsToShow)
+        val newGrid = List(9) { i -> i in indices }
+        return copy(
+            grid = newGrid,
+            playerGrid = List(9) { false },
+            phase = PuzzlePhase.SHOWING,
+            showTimer = 2
+        )
+    }
+
+    fun isPatternComplete(): Boolean {
+        return playerGrid.zip(grid).all { (p, g) -> p == g }
+    }
+
+    fun wrongCells(): List<Int> {
+        return playerGrid.indices.filter { i ->
+            playerGrid[i] != grid[i]
+        }
+    }
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = Room.databaseBuilder(
@@ -27,7 +78,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val taskRepository = TaskRepository(db.taskDao())
     private val gamificationRepository = GamificationRepository(application.dataStore)
 
+    val newlyEarnedBadge = MutableStateFlow<String?>(null)
+
+    fun dismissBadge() { newlyEarnedBadge.value = null }
+
     val selectedCategory = MutableStateFlow(com.example.data.TaskCategory.ALL)
+
+    fun saveNotificationSettings(
+        focusCheckInEnabled: Boolean,
+        focusCheckInIntervalMinutes: Int,
+        focusCheckInStartHour: Int,
+        focusCheckInEndHour: Int,
+        taskNudgeEnabled: Boolean,
+        taskNudgeHour: Int,
+        streakProtectorEnabled: Boolean,
+        streakProtectorHour: Int,
+        medicationReminderEnabled: Boolean,
+        medicationReminderHour: Int,
+        medicationReminderMinute: Int,
+        quietHoursEnabled: Boolean,
+        quietHoursStartHour: Int,
+        quietHoursEndHour: Int,
+        context: android.content.Context
+    ) {
+        viewModelScope.launch {
+            gamificationRepository.saveNotificationSettings(
+                focusCheckInEnabled, focusCheckInIntervalMinutes,
+                focusCheckInStartHour, focusCheckInEndHour,
+                taskNudgeEnabled, taskNudgeHour,
+                streakProtectorEnabled, streakProtectorHour,
+                medicationReminderEnabled, medicationReminderHour, medicationReminderMinute,
+                quietHoursEnabled, quietHoursStartHour, quietHoursEndHour
+            )
+            // Reschedule WorkManager after saving
+            val newState = gamificationRepository.stateFlow.first()
+            com.example.notifications.ReminderScheduler.rescheduleAll(context, newState)
+        }
+    }
+
+    fun resetProfile(context: android.content.Context) {
+        viewModelScope.launch {
+            gamificationRepository.resetProfile()
+            com.example.notifications.ReminderScheduler.cancelAll(context)
+        }
+    }
+
+    fun completeTutorial() {
+        viewModelScope.launch {
+            gamificationRepository.completeTutorial()
+        }
+    }
+
+    fun addTutorialTask(title: String): Boolean {
+        if (title.isBlank()) return false
+        viewModelScope.launch {
+            taskRepository.insert(
+                Task(
+                    title = title,
+                    priority = com.example.data.TaskPriority.HIGH.name,
+                    category = com.example.data.TaskCategory.PERSONAL.name
+                )
+            )
+        }
+        return true
+    }
 
     fun setCategory(category: com.example.data.TaskCategory) {
         selectedCategory.value = category
@@ -73,6 +187,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     val mergeGameState = MutableStateFlow<MergeGameUiState?>(null)
     private var mergeTimerJob: kotlinx.coroutines.Job? = null
+
+    val puzzleGameState = MutableStateFlow<PuzzleGameUiState?>(null)
+    private var puzzleTimerJob: kotlinx.coroutines.Job? = null
+    private var puzzleShowJob: kotlinx.coroutines.Job? = null
 
     fun startMergeGame(themeName: String) {
         viewModelScope.launch {
@@ -160,6 +278,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // DG reward: 1 DG per 10 points, capped at 30
             val dgReward = (finalScore / 10).coerceAtMost(30)
             val xpReward = (finalScore / 5).coerceAtMost(50)
+            
+            gamificationRepository.recordGamePlayed()
+            val badge = gamificationRepository.checkAndAwardBadges()
+            if (badge != null) newlyEarnedBadge.value = badge
+            
             if (dgReward > 0 || xpReward > 0) {
                 gamificationRepository.addReward(xpReward, dgReward)
                 showSnackbar("🎮 Score: $finalScore — +$xpReward XP, +$dgReward DG")
@@ -180,6 +303,112 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         mergeGameState.value = null
+    }
+
+    fun startPuzzleGame(themeName: String) {
+        puzzleGameState.value = PuzzleGameUiState.newGame(themeName)
+        startPuzzleTimer()
+        startShowCountdown()
+    }
+
+    private fun startPuzzleTimer() {
+        puzzleTimerJob?.cancel()
+        puzzleTimerJob = viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val current = puzzleGameState.value ?: break
+                if (!current.isActive) break
+                val newTime = current.timeRemainingSeconds - 1
+                if (newTime <= 0) {
+                    endPuzzleGame()
+                    break
+                } else {
+                    puzzleGameState.value = current.copy(timeRemainingSeconds = newTime)
+                }
+            }
+        }
+    }
+
+    private fun startShowCountdown() {
+        puzzleShowJob?.cancel()
+        puzzleShowJob = viewModelScope.launch {
+            delay(2000) // Show pattern for 2 seconds
+            val current = puzzleGameState.value ?: return@launch
+            if (current.phase == PuzzlePhase.SHOWING) {
+                puzzleGameState.value = current.copy(phase = PuzzlePhase.RECALLING)
+            }
+        }
+    }
+
+    fun onPuzzleTap(index: Int) {
+        val current = puzzleGameState.value ?: return
+        if (current.phase != PuzzlePhase.RECALLING) return
+
+        // Toggle this cell
+        val newPlayerGrid = current.playerGrid.toMutableList()
+        newPlayerGrid[index] = !newPlayerGrid[index]
+        val updated = current.copy(playerGrid = newPlayerGrid)
+
+        // Check if player has tapped exactly cellsToShow cells
+        val tappedCount = newPlayerGrid.count { it }
+        if (tappedCount == current.cellsToShow) {
+            // Auto-evaluate when enough cells are tapped
+            if (updated.isPatternComplete()) {
+                // Correct!
+                val newScore = current.score + current.level
+                puzzleGameState.value = updated.copy(
+                    phase = PuzzlePhase.CORRECT,
+                    score = newScore
+                )
+                viewModelScope.launch {
+                    delay(800)
+                    val next = puzzleGameState.value ?: return@launch
+                    puzzleGameState.value = next
+                        .copy(level = next.level + 1)
+                        .withNewPattern()
+                    startShowCountdown()
+                }
+            } else {
+                // Wrong
+                puzzleGameState.value = updated.copy(phase = PuzzlePhase.WRONG)
+                viewModelScope.launch {
+                    delay(1000)
+                    val retry = puzzleGameState.value ?: return@launch
+                    puzzleGameState.value = retry.withNewPattern()
+                    startShowCountdown()
+                }
+            }
+        } else {
+            puzzleGameState.value = updated
+        }
+    }
+
+    fun endPuzzleGame() {
+        puzzleTimerJob?.cancel()
+        puzzleShowJob?.cancel()
+        val current = puzzleGameState.value ?: return
+        val finalScore = current.score
+        puzzleGameState.value = current.copy(
+            isActive = false,
+            phase = PuzzlePhase.COMPLETE
+        )
+        viewModelScope.launch {
+            gamificationRepository.recordGamePlayed()
+            val dgReward = (finalScore / 5).coerceAtMost(30)
+            val xpReward = (finalScore * 3).coerceAtMost(60)
+            if (dgReward > 0 || xpReward > 0) {
+                gamificationRepository.addReward(xpReward, dgReward)
+                showSnackbar("🧩 Score: $finalScore — +$xpReward XP, +$dgReward DG")
+            }
+            val badge = gamificationRepository.checkAndAwardBadges()
+            if (badge != null) newlyEarnedBadge.value = badge
+        }
+    }
+
+    fun dismissPuzzleGame() {
+        puzzleTimerJob?.cancel()
+        puzzleShowJob?.cancel()
+        puzzleGameState.value = null
     }
 
     // Snackbar overlay state
@@ -214,6 +443,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 gamificationRepository.addReward(xpReward = 20, dgReward = 5)
                 gamificationRepository.recordActivityForToday()
                 showSnackbar("Task Complete! +20 XP, +5 DG")
+                gamificationRepository.recordTaskCompleted()
+                val badge = gamificationRepository.checkAndAwardBadges()
+                if (badge != null) newlyEarnedBadge.value = badge
             }
         }
     }
@@ -281,7 +513,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun startTimer(durationMinutes: Int) {
         val totalSeconds = durationMinutes * 60
-        focusTimerState.value = TimerState(isRunning = true, remainingSeconds = totalSeconds, initialSeconds = totalSeconds)
+        focusTimerState.value = TimerState(isRunning = true, remainingSeconds = totalSeconds, initialSeconds = totalSeconds, totalDurationMinutes = durationMinutes)
         
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
@@ -311,6 +543,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val xpReward = min * 5
             gamificationRepository.addReward(xpReward, dgReward)
             gamificationRepository.recordActivityForToday()
+            gamificationRepository.recordFocusSession(focusTimerState.value.totalDurationMinutes)
+            val badge = gamificationRepository.checkAndAwardBadges()
+            if (badge != null) newlyEarnedBadge.value = badge
             showSnackbar("Focus Session Complete! +$xpReward XP, +$dgReward DG")
         }
     }
@@ -399,7 +634,8 @@ data class MergeGameUiState(
 data class TimerState(
     val isRunning: Boolean = false,
     val remainingSeconds: Int = 0,
-    val initialSeconds: Int = 0
+    val initialSeconds: Int = 0,
+    val totalDurationMinutes: Int = 25
 ) {
     val progress: Float
        get() = if (initialSeconds == 0) 0f else

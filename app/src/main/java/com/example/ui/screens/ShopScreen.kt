@@ -24,6 +24,7 @@ import com.example.ui.components.CustomSnackbarOverlay
 import com.example.ui.components.ThemeBackgroundLayer
 import com.example.viewmodel.MainViewModel
 import com.example.ui.games.MergeGameDialog
+import com.example.ui.games.PuzzleGameDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +36,15 @@ fun ShopScreen(
     val snackbarMessage by viewModel.snackbarMessage.collectAsState()
     val activeBreak by viewModel.activeBreakActivity.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Breaks", "Games", "Themes", "Titles")
+    val tabs = remember(gamificationState.rewardPreferences) {
+        val prefs = gamificationState.rewardPreferences
+        // Games comes first if user ranked it #1
+        if (prefs.firstOrNull() == "Games") {
+            listOf("Games", "Breaks", "Themes", "Titles")
+        } else {
+            listOf("Breaks", "Games", "Themes", "Titles")
+        }
+    }
 
     // Break activity dialog
     activeBreak?.let { activity ->
@@ -48,6 +57,11 @@ fun ShopScreen(
     val mergeGameState by viewModel.mergeGameState.collectAsState()
     mergeGameState?.let {
         MergeGameDialog(viewModel = viewModel)
+    }
+
+    val puzzleGameState by viewModel.puzzleGameState.collectAsState()
+    puzzleGameState?.let {
+        PuzzleGameDialog(viewModel = viewModel)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -94,12 +108,16 @@ fun ShopScreen(
                     }
                 }
 
+                val filteredActivities = remember(gamificationState) {
+                    com.example.data.getFilteredBreakActivities(gamificationState)
+                }
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    when (selectedTab) {
-                        0 -> {
+                    when (tabs[selectedTab]) {
+                        "Breaks" -> {
                             item {
                                 Text(
                                     "Spend Dopamine Gold on a real break. " +
@@ -108,15 +126,49 @@ fun ShopScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
                             }
-                            items(AvailableBreakActivities) { activity ->
+                            item {
+                                Text(
+                                    "Break activities are general wellbeing suggestions. " +
+                                    "They are not a substitute for professional medical or " +
+                                    "mental health advice.",
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
+                            
+                            // Show a note if any activities were filtered
+                            val hiddenCount = AvailableBreakActivities.size - filteredActivities.size
+                            if (hiddenCount > 0) {
+                                item {
+                                    Text(
+                                        "$hiddenCount activities hidden based on your physical profile.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                }
+                            }
+                        
+                            items(filteredActivities) { activity ->
+                                // Personalise snack instructions on the fly
+                                val personalised = if (activity.id == "snack" &&
+                                    gamificationState.dietaryRestrictions.isNotEmpty()) {
+                                    activity.copy(instructions =
+                                        com.example.data.getPersonalisedSnackInstructions(gamificationState))
+                                } else activity
+                        
                                 BreakActivityCard(
-                                    activity = activity,
+                                    activity = personalised,
                                     canAfford = gamificationState.dopamineGold >= activity.cost,
-                                    onClick = { viewModel.startBreakActivity(activity) }
+                                    onClick = { viewModel.startBreakActivity(personalised) }
                                 )
                             }
                         }
-                        1 -> {
+                        "Games" -> {
                             // Games tab
                             item {
                                 Text(
@@ -161,8 +213,40 @@ fun ShopScreen(
                                     }
                                 }
                             }
+
+                            item {
+                                val puzzleState by viewModel.puzzleGameState.collectAsState()
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("🧩", fontSize = 40.sp,
+                                            modifier = Modifier.padding(end = 14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Pattern", fontWeight = FontWeight.Black,
+                                                style = MaterialTheme.typography.titleMedium)
+                                            Text("Memorise the pattern, then recreate it. Gets harder each round. 3 minute session.",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Button(onClick = {
+                                            viewModel.startPuzzleGame(gamificationState.currentTheme)
+                                        }) {
+                                            Text("Play")
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        2 -> {
+                        "Themes" -> {
                             item {
                                 Text("Themes",
                                     style = MaterialTheme.typography.titleMedium,
@@ -184,7 +268,7 @@ fun ShopScreen(
                                 )
                             }
                         }
-                        3 -> {
+                        "Titles" -> {
                             item {
                                 Text(
                                     "Titles appear next to your level in the top bar. " +

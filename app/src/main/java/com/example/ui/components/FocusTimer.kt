@@ -47,7 +47,7 @@ fun FocusTimer(
     ) {
         androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
             CircularProgressIndicator(
-                progress = state.progress,
+                progress = { state.progress },
                 modifier = Modifier.size(150.dp),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),

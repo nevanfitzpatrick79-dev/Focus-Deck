@@ -272,6 +272,12 @@ fun ProfileWizardScreen(
                                 subtitle = "Optional — this helps personalise tips and suggestions. All answers stay on your device.",
                                 onSkip = { skipToNext() }
                             )
+                            DisclaimerText(
+                                "This information is used only to personalise tips and suggestions " +
+                                "within this app. It is not used for diagnosis, treatment, or any " +
+                                "medical purpose. This app is not a substitute for professional " +
+                                "mental health support."
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("How does your ADHD tend to show up?",
                                 fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -343,6 +349,11 @@ fun ProfileWizardScreen(
                                     Text(opt, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
                             }
+                            DisclaimerText(
+                                "Medication information is used only to time focus suggestions. " +
+                                "Always follow your prescriber's instructions. Do not adjust your " +
+                                "medication based on anything in this app."
+                            )
                         }
 
                         // ── STEP 5: Physical Health (Optional) ────────────
@@ -352,6 +363,11 @@ fun ProfileWizardScreen(
                                 title = "Physical Profile",
                                 subtitle = "Optional — helps filter break activities to ones that work for your body.",
                                 onSkip = { skipToNext() }
+                            )
+                            DisclaimerText(
+                                "Physical profile information is used only to filter break activity " +
+                                "suggestions. This app does not provide medical advice. Consult a " +
+                                "healthcare professional for guidance on physical activity and health."
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("How active are you day-to-day?",
@@ -416,6 +432,11 @@ fun ProfileWizardScreen(
                                 title = "Rewards & Diet",
                                 subtitle = "Optional — personalises reward suggestions and filters out things that won't work for you.",
                                 onSkip = { skipToNext() }
+                            )
+                            DisclaimerText(
+                                "Dietary information is used only to personalise reward and snack " +
+                                "suggestions. This app is not a source of nutritional or medical " +
+                                "advice. Always follow guidance from your healthcare provider."
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("Any dietary restrictions?",
@@ -609,6 +630,18 @@ fun ProfileWizardScreen(
         }
     }
 }
+}
+
+@Composable
+fun DisclaimerText(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+        modifier = modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)
+    )
 }
 
 // Reusable card for wizard selections

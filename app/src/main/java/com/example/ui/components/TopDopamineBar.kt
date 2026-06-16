@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -29,7 +31,9 @@ import com.example.data.GamificationState
 @Composable
 fun TopDopamineBar(
     state: GamificationState,
-    onBreakClick: () -> Unit
+    onBreakClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onBadgesClick: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -59,7 +63,7 @@ fun TopDopamineBar(
                     val currentXp = state.xp.toFloat()
                     val xpNeeded = (state.level * 100).toFloat()
                     LinearProgressIndicator(
-                        progress = currentXp / xpNeeded,
+                        progress = { currentXp / xpNeeded },
                         modifier = Modifier
                             .fillMaxWidth(0.8f)
                             .height(8.dp),
@@ -77,6 +81,21 @@ fun TopDopamineBar(
                         color = Color(0xFFFF9800)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
+                    
+                    val earnedCount = com.example.data.AvailableBadges.count { state.earnedBadgeIds.contains(it.id) }
+                    if (earnedCount > 0) {
+                        Text(
+                            text = "🅑 $earnedCount",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier
+                                .clickable(onClick = onBadgesClick)
+                                .padding(horizontal = 4.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    
                     Text(
                         text = "💎 ${state.dopamineGold} DG",
                         style = MaterialTheme.typography.titleMedium,
@@ -84,6 +103,13 @@ fun TopDopamineBar(
                         color = Color(0xFFFFD700)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     IconButton(onClick = onBreakClick) {
                         Icon(
                             imageVector = Icons.Default.Info,

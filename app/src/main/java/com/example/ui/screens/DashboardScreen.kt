@@ -20,11 +20,22 @@ import com.example.ui.components.ThemeBackgroundLayer
 import com.example.ui.components.TopDopamineBar
 import com.example.ui.components.WorkingMemoryAnchor
 import com.example.viewmodel.MainViewModel
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun DashboardScreen(
     viewModel: MainViewModel,
-    onNavigateToShop: () -> Unit
+    onNavigateToShop: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToBadges: () -> Unit
 ) {
     val gamificationState by viewModel.gamificationState.collectAsState()
     val tasks by viewModel.tasks.collectAsState()
@@ -43,7 +54,9 @@ fun DashboardScreen(
             topBar = {
                 TopDopamineBar(
                     state = gamificationState,
-                    onBreakClick = onNavigateToShop // Go to shop for rewards
+                    onBreakClick = onNavigateToShop, // Go to shop for rewards
+                    onSettingsClick = onNavigateToSettings,
+                    onBadgesClick = onNavigateToBadges
                 )
             }
         ) { paddingValues ->
@@ -61,6 +74,48 @@ fun DashboardScreen(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Daily summary row
+                val completedToday = tasks.count { task ->
+                    task.isCompleted &&
+                    (System.currentTimeMillis() - task.timestamp) < 86_400_000L
+                }
+                val activeCount = tasks.count { !it.isCompleted }
+
+                if (gamificationState.isProfileSetup) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Streak chip
+                        if (gamificationState.dailyFlowStreak > 0) {
+                            SummaryChip(
+                                "🔥 ${gamificationState.dailyFlowStreak}d streak",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // Tasks completed today
+                        SummaryChip(
+                            "✅ $completedToday done",
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Active tasks
+                        if (activeCount > 0) {
+                            SummaryChip(
+                                "📋 $activeCount left",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // Tip card
+                    com.example.ui.components.DailyTipCard(
+                        state = gamificationState,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
                 
                 // Bento Layout equivalent
                 FocusTimer(
@@ -87,5 +142,30 @@ fun DashboardScreen(
         
         CustomSnackbarOverlay(message = snackbarMessage)
         com.example.ui.components.ConfettiOverlay(show = showConfetti)
+        
+        val newBadge by viewModel.newlyEarnedBadge.collectAsState()
+        com.example.ui.components.BadgeEarnedOverlay(
+            badgeId = newBadge,
+            onDismiss = { viewModel.dismissBadge() }
+        )
+    }
+}
+
+@Composable
+fun SummaryChip(text: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+        )
+    ) {
+        Text(
+            text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+        )
     }
 }

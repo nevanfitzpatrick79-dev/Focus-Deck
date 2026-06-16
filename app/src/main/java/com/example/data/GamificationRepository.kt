@@ -28,6 +28,7 @@ data class GamificationState(
     val dopamineGold: Int = 0,
     val dailyFlowStreak: Int = 0,
     val isProfileSetup: Boolean = false,
+    val tutorialCompleted: Boolean = false,
     val currentTheme: String = "Cosmic Slate",
     val unlockedThemes: Set<String> = setOf("Cosmic Slate"),
     val workingMemoryAnchor: String = "",
@@ -46,7 +47,26 @@ data class GamificationState(
     val physicalLimitations: Set<String> = emptySet(),
     val dietaryRestrictions: Set<String> = emptySet(),
     val rewardPreferences: List<String> = emptyList(),
-    val mergeHighScore: Int = 0
+    val mergeHighScore: Int = 0,
+    val totalTasksCompleted: Int = 0,
+    val totalFocusSessions: Int = 0,
+    val totalFocusMinutes: Int = 0,
+    val totalGamesPlayed: Int = 0,
+    val earnedBadgeIds: Set<String> = emptySet(),
+    val focusCheckInEnabled: Boolean = false,
+    val focusCheckInIntervalMinutes: Int = 60,
+    val focusCheckInStartHour: Int = 9,
+    val focusCheckInEndHour: Int = 18,
+    val taskNudgeEnabled: Boolean = false,
+    val taskNudgeHour: Int = 14,
+    val streakProtectorEnabled: Boolean = false,
+    val streakProtectorHour: Int = 16,
+    val medicationReminderEnabled: Boolean = false,
+    val medicationReminderHour: Int = 8,
+    val medicationReminderMinute: Int = 0,
+    val quietHoursEnabled: Boolean = false,
+    val quietHoursStartHour: Int = 22,
+    val quietHoursEndHour: Int = 8
 )
 
 data class BreakActivity(
@@ -56,7 +76,13 @@ data class BreakActivity(
     val description: String,
     val duration: String,
     val cost: Int,
-    val instructions: List<String>
+    val instructions: List<String>,
+    val requiresMovement: Boolean = false,   // blocked by Limited mobility / Chronic pain
+    val requiresVision: Boolean = false,     // blocked by Vision impairment
+    val requiresHearing: Boolean = false,    // blocked by Hearing impairment
+    val containsFood: Boolean = false,       // gated by dietary restrictions
+    val foodRestrictions: Set<String> = emptySet(), // which dietary tags block this
+    val category: String = "rest"            // "movement", "breathing", "creative", "rest", "food"
 )
 
 data class TitleReward(
@@ -68,27 +94,23 @@ data class TitleReward(
 
 val AvailableBreakActivities = listOf(
     BreakActivity(
-        id = "walk",
-        name = "Micro Walk",
-        emoji = "🚶",
+        id = "walk", name = "Micro Walk", emoji = "🚶",
         description = "A quick movement reset. Gets blood to your brain.",
-        duration = "5 min",
-        cost = 20,
+        duration = "5 min", cost = 20,
         instructions = listOf(
             "Stand up and shake out your hands",
             "Walk to another room or outside",
             "Notice 3 things you can see",
             "Take 5 slow breaths",
             "Return to your task refreshed"
-        )
+        ),
+        requiresMovement = true,
+        category = "movement"
     ),
     BreakActivity(
-        id = "breathe",
-        name = "Box Breathing",
-        emoji = "🌬",
+        id = "breathe", name = "Box Breathing", emoji = "🌬",
         description = "Regulate your nervous system in 4 minutes.",
-        duration = "4 min",
-        cost = 15,
+        duration = "4 min", cost = 15,
         instructions = listOf(
             "Sit comfortably and close your eyes",
             "Inhale slowly for 4 counts",
@@ -96,78 +118,101 @@ val AvailableBreakActivities = listOf(
             "Exhale for 4 counts",
             "Hold for 4 counts",
             "Repeat 4 times"
-        )
+        ),
+        category = "breathing"
     ),
     BreakActivity(
-        id = "stretch",
-        name = "Desk Stretch",
-        emoji = "🧘",
+        id = "stretch", name = "Desk Stretch", emoji = "🧘",
         description = "Release tension from sitting. Body scan.",
-        duration = "5 min",
-        cost = 20,
+        duration = "5 min", cost = 20,
         instructions = listOf(
             "Roll your shoulders back 5 times",
             "Tilt your head gently side to side",
             "Reach arms overhead and stretch",
             "Twist gently left and right",
             "Shake out your hands and wrists"
-        )
+        ),
+        requiresMovement = true,
+        category = "movement"
     ),
     BreakActivity(
-        id = "water",
-        name = "Hydration Reset",
-        emoji = "💧",
+        id = "water", name = "Hydration Reset", emoji = "💧",
         description = "Dehydration tanks focus. Fix it now.",
-        duration = "2 min",
-        cost = 10,
+        duration = "2 min", cost = 10,
         instructions = listOf(
             "Get up and fill a full glass of water",
             "Drink it slowly — don't rush",
             "Splash cold water on your face",
             "Return to your desk"
-        )
+        ),
+        requiresMovement = true,
+        category = "rest"
     ),
     BreakActivity(
-        id = "doodle",
-        name = "Free Doodle",
-        emoji = "✏️",
+        id = "doodle", name = "Free Doodle", emoji = "✏️",
         description = "Unstructured drawing rests the planning brain.",
-        duration = "5 min",
-        cost = 25,
+        duration = "5 min", cost = 25,
         instructions = listOf(
             "Grab paper and a pen",
             "Draw whatever comes to mind — no rules",
             "Don't judge what you create",
             "Fill the page, then put the pen down"
-        )
+        ),
+        requiresVision = true,
+        category = "creative"
     ),
     BreakActivity(
-        id = "music",
-        name = "Music Moment",
-        emoji = "🎵",
+        id = "music", name = "Music Moment", emoji = "🎵",
         description = "One song. Eyes closed. Full attention.",
-        duration = "3-4 min",
-        cost = 15,
+        duration = "3-4 min", cost = 15,
         instructions = listOf(
             "Pick a song you love",
             "Close your eyes or look somewhere neutral",
             "Really listen — notice each instrument",
             "Let the song finish completely"
-        )
+        ),
+        requiresHearing = true,
+        category = "rest"
     ),
     BreakActivity(
-        id = "snack",
-        name = "Brain Fuel",
-        emoji = "🍎",
+        id = "snack", name = "Brain Fuel", emoji = "🍎",
         description = "Low blood sugar kills focus. Eat something real.",
-        duration = "5 min",
-        cost = 20,
+        duration = "5 min", cost = 20,
         instructions = listOf(
             "Get away from your desk",
             "Eat a small snack — fruit, nuts, or protein",
             "No screens while eating",
             "Notice the taste and texture"
-        )
+        ),
+        containsFood = true,
+        foodRestrictions = setOf("Diabetic"),  // snack suggestion may need to change
+        category = "food"
+    ),
+    BreakActivity(
+        id = "meditate", name = "Mini Meditation", emoji = "🧘",
+        description = "Two minutes. Sit still. Notice your breath.",
+        duration = "2 min", cost = 10,
+        instructions = listOf(
+            "Sit comfortably with both feet on the floor",
+            "Close your eyes or soften your gaze",
+            "Breathe naturally — don't control it",
+            "When your mind wanders, gently return to your breath",
+            "After 2 minutes, slowly open your eyes"
+        ),
+        category = "breathing"
+    ),
+    BreakActivity(
+        id = "gratitude", name = "Three Good Things", emoji = "✨",
+        description = "A 90-second mood reset backed by research.",
+        duration = "2 min", cost = 10,
+        instructions = listOf(
+            "Grab a piece of paper or open a notes app",
+            "Write three specific things that went okay today",
+            "They don't have to be big — small counts",
+            "Read them back once",
+            "Return to work"
+        ),
+        category = "rest"
     )
 )
 
@@ -180,6 +225,151 @@ val AvailableTitles = listOf(
     TitleReward("hyperfocus_hero", "Hyperfocus Hero", "Power and precision", 800),
     TitleReward("executive_legend", "Executive Legend", "Peak performance", 1200)
 )
+
+data class Badge(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val description: String,
+    val dgReward: Int,
+    val isEarned: (tasks: Int, sessions: Int, focusMins: Int,
+                   streak: Int, games: Int, level: Int) -> Boolean
+)
+
+val AvailableBadges = listOf(
+    // Task badges
+    Badge("first_task", "First Step", "✅",
+        "Complete your very first task.", 10,
+        { tasks, _, _, _, _, _ -> tasks >= 1 }),
+    Badge("tasks_10", "Getting Things Done", "📋",
+        "Complete 10 tasks.", 15,
+        { tasks, _, _, _, _, _ -> tasks >= 10 }),
+    Badge("tasks_50", "Task Tamer", "⚡",
+        "Complete 50 tasks.", 25,
+        { tasks, _, _, _, _, _ -> tasks >= 50 }),
+    Badge("tasks_100", "Centurion", "💯",
+        "Complete 100 tasks.", 50,
+        { tasks, _, _, _, _, _ -> tasks >= 100 }),
+    Badge("tasks_500", "Unstoppable", "🏆",
+        "Complete 500 tasks.", 100,
+        { tasks, _, _, _, _, _ -> tasks >= 500 }),
+
+    // Focus session badges
+    Badge("first_session", "In the Zone", "⏱",
+        "Complete your first focus session.", 10,
+        { _, sessions, _, _, _, _ -> sessions >= 1 }),
+    Badge("sessions_10", "Focus Habit", "🎯",
+        "Complete 10 focus sessions.", 20,
+        { _, sessions, _, _, _, _ -> sessions >= 10 }),
+    Badge("focus_60mins", "Deep Work", "🧠",
+        "Accumulate 60 minutes of focused work.", 25,
+        { _, _, mins, _, _, _ -> mins >= 60 }),
+    Badge("focus_300mins", "Flow State", "🌊",
+        "Accumulate 5 hours of focused work.", 50,
+        { _, _, mins, _, _, _ -> mins >= 300 }),
+    Badge("focus_1000mins", "Marathon Mind", "🏅",
+        "Accumulate over 16 hours of focused work.", 100,
+        { _, _, mins, _, _, _ -> mins >= 1000 }),
+
+    // Streak badges
+    Badge("streak_3", "Consistent", "🔥",
+        "Maintain a 3-day streak.", 15,
+        { _, _, _, streak, _, _ -> streak >= 3 }),
+    Badge("streak_7", "Week Warrior", "🗓",
+        "Maintain a 7-day streak.", 30,
+        { _, _, _, streak, _, _ -> streak >= 7 }),
+    Badge("streak_30", "Month Strong", "📅",
+        "Maintain a 30-day streak.", 75,
+        { _, _, _, streak, _, _ -> streak >= 30 }),
+
+    // Level badges
+    Badge("level_5", "Rising", "⭐",
+        "Reach Level 5.", 20,
+        { _, _, _, _, _, level -> level >= 5 }),
+    Badge("level_10", "Experienced", "🌟",
+        "Reach Level 10.", 40,
+        { _, _, _, _, _, level -> level >= 10 }),
+    Badge("level_25", "Veteran", "💫",
+        "Reach Level 25.", 75,
+        { _, _, _, _, _, level -> level >= 25 }),
+
+    // Game badges
+    Badge("first_game", "Player", "🎮",
+        "Play your first merge game.", 10,
+        { _, _, _, _, games, _ -> games >= 1 }),
+    Badge("games_10", "Gamer", "🕹",
+        "Play 10 merge games.", 20,
+        { _, _, _, _, games, _ -> games >= 10 })
+)
+
+fun getFilteredBreakActivities(state: GamificationState): List<BreakActivity> {
+    val limitations = state.physicalLimitations
+    val diet = state.dietaryRestrictions
+    val prefs = state.rewardPreferences
+
+    // Filter out activities the user can't do
+    val filtered = AvailableBreakActivities.filter { activity ->
+        val blockedByMobility = activity.requiresMovement &&
+            (limitations.contains("Limited mobility") || limitations.contains("Chronic pain"))
+        val blockedByVision = activity.requiresVision &&
+            limitations.contains("Vision impairment")
+        val blockedByHearing = activity.requiresHearing &&
+            limitations.contains("Hearing impairment")
+        val blockedByDiet = activity.containsFood &&
+            activity.foodRestrictions.any { diet.contains(it) }
+
+        !blockedByMobility && !blockedByVision && !blockedByHearing && !blockedByDiet
+    }
+
+    // Sort by reward preferences
+    // Map preference labels to activity categories
+    val categoryOrder = prefs.mapIndexedNotNull { index, pref ->
+        val cat = when (pref) {
+            "Movement" -> "movement"
+            "Rest" -> "rest"
+            "Creative" -> "creative"
+            "Music" -> "rest"  // music falls under rest category
+            else -> null
+        }
+        cat?.let { it to index }
+    }.toMap()
+
+    return filtered.sortedBy { activity ->
+        categoryOrder[activity.category] ?: Int.MAX_VALUE
+    }
+}
+
+fun getPersonalisedSnackInstructions(state: GamificationState): List<String> {
+    val diet = state.dietaryRestrictions
+    return when {
+        diet.contains("Diabetic") -> listOf(
+            "Get away from your desk",
+            "Choose a low-sugar snack — nuts, cheese, or vegetables",
+            "Avoid fruit juice or anything sweetened",
+            "No screens while eating",
+            "Notice the taste and texture"
+        )
+        diet.contains("Vegan") -> listOf(
+            "Get away from your desk",
+            "Eat a plant-based snack — fruit, nuts, or hummus with veg",
+            "No screens while eating",
+            "Notice the taste and texture"
+        )
+        diet.contains("Nut allergy") -> listOf(
+            "Get away from your desk",
+            "Choose a nut-free snack — fruit, cheese, or seeds",
+            "Check labels if it's packaged",
+            "No screens while eating",
+            "Notice the taste and texture"
+        )
+        else -> listOf(
+            "Get away from your desk",
+            "Eat a small snack — fruit, nuts, or protein",
+            "No screens while eating",
+            "Notice the taste and texture"
+        )
+    }
+}
 
 data class MergeSymbolSet(
     val themeName: String,
@@ -229,7 +419,29 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
     private val MERGE_HIGH_SCORE_KEY = intPreferencesKey("merge_high_score")
     private val MERGE_THEME_KEY = stringPreferencesKey("merge_session_theme")
     private val MERGE_TIME_KEY = intPreferencesKey("merge_time_remaining")
+
+    private val FOCUS_CHECKIN_ENABLED_KEY = booleanPreferencesKey("focus_checkin_enabled")
+    private val FOCUS_CHECKIN_INTERVAL_KEY = intPreferencesKey("focus_checkin_interval")
+    private val FOCUS_CHECKIN_START_KEY = intPreferencesKey("focus_checkin_start")
+    private val FOCUS_CHECKIN_END_KEY = intPreferencesKey("focus_checkin_end")
+    private val TASK_NUDGE_ENABLED_KEY = booleanPreferencesKey("task_nudge_enabled")
+    private val TASK_NUDGE_HOUR_KEY = intPreferencesKey("task_nudge_hour")
+    private val STREAK_PROTECTOR_ENABLED_KEY = booleanPreferencesKey("streak_protector_enabled")
+    private val STREAK_PROTECTOR_HOUR_KEY = intPreferencesKey("streak_protector_hour")
+    private val MED_REMINDER_ENABLED_KEY = booleanPreferencesKey("med_reminder_enabled")
+    private val MED_REMINDER_HOUR_KEY = intPreferencesKey("med_reminder_hour")
+    private val MED_REMINDER_MINUTE_KEY = intPreferencesKey("med_reminder_minute")
+    private val QUIET_HOURS_ENABLED_KEY = booleanPreferencesKey("quiet_hours_enabled")
+    private val QUIET_HOURS_START_KEY = intPreferencesKey("quiet_hours_start")
+    private val QUIET_HOURS_END_KEY = intPreferencesKey("quiet_hours_end")
     
+    private val TOTAL_TASKS_KEY = intPreferencesKey("total_tasks_completed")
+    private val TOTAL_SESSIONS_KEY = intPreferencesKey("total_focus_sessions")
+    private val TOTAL_FOCUS_MINS_KEY = intPreferencesKey("total_focus_minutes")
+    private val TOTAL_GAMES_KEY = intPreferencesKey("total_games_played")
+    private val BADGES_KEY = stringPreferencesKey("earned_badges")
+    private val TUTORIAL_KEY = booleanPreferencesKey("tutorial_completed")
+
     val stateFlow: Flow<GamificationState> = dataStore.data.map { prefs ->
         GamificationState(
             isLoading = false,
@@ -238,6 +450,7 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
             dopamineGold = prefs[DG_KEY] ?: 0,
             dailyFlowStreak = prefs[STREAK_KEY] ?: 0,
             isProfileSetup = prefs[PROFILE_SETUP_KEY] ?: false,
+            tutorialCompleted = prefs[TUTORIAL_KEY] ?: false,
             currentTheme = prefs[THEME_KEY] ?: "Cosmic Slate",
             unlockedThemes = prefs[UNLOCKED_THEMES_KEY]?.split(",")?.toSet() ?: setOf("Cosmic Slate"),
             workingMemoryAnchor = prefs[ANCHOR_KEY] ?: "",
@@ -257,7 +470,27 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
             physicalLimitations = prefs[PHYSICAL_KEY]?.split(",")?.filter { it.isNotEmpty() }?.toSet() ?: emptySet(),
             dietaryRestrictions = prefs[DIET_KEY]?.split(",")?.filter { it.isNotEmpty() }?.toSet() ?: emptySet(),
             rewardPreferences = prefs[REWARDS_KEY]?.split(",")?.filter { it.isNotEmpty() } ?: emptyList(),
-            mergeHighScore = prefs[MERGE_HIGH_SCORE_KEY] ?: 0
+            mergeHighScore = prefs[MERGE_HIGH_SCORE_KEY] ?: 0,
+            totalTasksCompleted = prefs[TOTAL_TASKS_KEY] ?: 0,
+            totalFocusSessions = prefs[TOTAL_SESSIONS_KEY] ?: 0,
+            totalFocusMinutes = prefs[TOTAL_FOCUS_MINS_KEY] ?: 0,
+            totalGamesPlayed = prefs[TOTAL_GAMES_KEY] ?: 0,
+            earnedBadgeIds = prefs[BADGES_KEY]?.split(",")
+                ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet(),
+            focusCheckInEnabled = prefs[FOCUS_CHECKIN_ENABLED_KEY] ?: false,
+            focusCheckInIntervalMinutes = prefs[FOCUS_CHECKIN_INTERVAL_KEY] ?: 60,
+            focusCheckInStartHour = prefs[FOCUS_CHECKIN_START_KEY] ?: 9,
+            focusCheckInEndHour = prefs[FOCUS_CHECKIN_END_KEY] ?: 18,
+            taskNudgeEnabled = prefs[TASK_NUDGE_ENABLED_KEY] ?: false,
+            taskNudgeHour = prefs[TASK_NUDGE_HOUR_KEY] ?: 14,
+            streakProtectorEnabled = prefs[STREAK_PROTECTOR_ENABLED_KEY] ?: false,
+            streakProtectorHour = prefs[STREAK_PROTECTOR_HOUR_KEY] ?: 16,
+            medicationReminderEnabled = prefs[MED_REMINDER_ENABLED_KEY] ?: false,
+            medicationReminderHour = prefs[MED_REMINDER_HOUR_KEY] ?: 8,
+            medicationReminderMinute = prefs[MED_REMINDER_MINUTE_KEY] ?: 0,
+            quietHoursEnabled = prefs[QUIET_HOURS_ENABLED_KEY] ?: false,
+            quietHoursStartHour = prefs[QUIET_HOURS_START_KEY] ?: 22,
+            quietHoursEndHour = prefs[QUIET_HOURS_END_KEY] ?: 8
         )
     }
     
@@ -455,6 +688,104 @@ class GamificationRepository(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { prefs ->
             val current = prefs[MERGE_HIGH_SCORE_KEY] ?: 0
             if (score > current) prefs[MERGE_HIGH_SCORE_KEY] = score
+        }
+    }
+
+    suspend fun recordTaskCompleted() {
+        dataStore.edit { prefs ->
+            prefs[TOTAL_TASKS_KEY] = (prefs[TOTAL_TASKS_KEY] ?: 0) + 1
+        }
+    }
+
+    suspend fun recordFocusSession(minutes: Int) {
+        dataStore.edit { prefs ->
+            prefs[TOTAL_SESSIONS_KEY] = (prefs[TOTAL_SESSIONS_KEY] ?: 0) + 1
+            prefs[TOTAL_FOCUS_MINS_KEY] = (prefs[TOTAL_FOCUS_MINS_KEY] ?: 0) + minutes
+        }
+    }
+
+    suspend fun recordGamePlayed() {
+        dataStore.edit { prefs ->
+            prefs[TOTAL_GAMES_KEY] = (prefs[TOTAL_GAMES_KEY] ?: 0) + 1
+        }
+    }
+
+    // Returns the badge ID if newly earned, null otherwise
+    suspend fun checkAndAwardBadges(): String? {
+        val prefs = dataStore.data.first()
+        val earned = prefs[BADGES_KEY]?.split(",")
+            ?.filter { it.isNotEmpty() }?.toMutableSet() ?: mutableSetOf()
+
+        val tasks = prefs[TOTAL_TASKS_KEY] ?: 0
+        val sessions = prefs[TOTAL_SESSIONS_KEY] ?: 0
+        val focusMins = prefs[TOTAL_FOCUS_MINS_KEY] ?: 0
+        val streak = prefs[STREAK_KEY] ?: 0
+        val games = prefs[TOTAL_GAMES_KEY] ?: 0
+        val level = prefs[LEVEL_KEY] ?: 1
+
+        // Check each badge in order — return first newly earned one
+        val newBadge = AvailableBadges.firstOrNull { badge ->
+            !earned.contains(badge.id) && badge.isEarned(
+                tasks, sessions, focusMins, streak, games, level)
+        }
+
+        if (newBadge != null) {
+            earned.add(newBadge.id)
+            dataStore.edit { p ->
+                p[BADGES_KEY] = earned.joinToString(",")
+            }
+            // Grant DG bonus for earning badge
+            addReward(xpReward = 0, dgReward = newBadge.dgReward)
+        }
+
+        return newBadge?.id
+    }
+
+    suspend fun resetProfile() {
+        dataStore.edit { prefs ->
+            prefs[PROFILE_SETUP_KEY] = false
+            prefs[WIZARD_STEP_KEY] = 0
+            prefs[TUTORIAL_KEY] = false
+        }
+    }
+
+    suspend fun completeTutorial() {
+        dataStore.edit { prefs ->
+            prefs[TUTORIAL_KEY] = true
+        }
+    }
+
+    suspend fun saveNotificationSettings(
+        focusCheckInEnabled: Boolean,
+        focusCheckInIntervalMinutes: Int,
+        focusCheckInStartHour: Int,
+        focusCheckInEndHour: Int,
+        taskNudgeEnabled: Boolean,
+        taskNudgeHour: Int,
+        streakProtectorEnabled: Boolean,
+        streakProtectorHour: Int,
+        medicationReminderEnabled: Boolean,
+        medicationReminderHour: Int,
+        medicationReminderMinute: Int,
+        quietHoursEnabled: Boolean,
+        quietHoursStartHour: Int,
+        quietHoursEndHour: Int
+    ) {
+        dataStore.edit { prefs ->
+            prefs[FOCUS_CHECKIN_ENABLED_KEY] = focusCheckInEnabled
+            prefs[FOCUS_CHECKIN_INTERVAL_KEY] = focusCheckInIntervalMinutes
+            prefs[FOCUS_CHECKIN_START_KEY] = focusCheckInStartHour
+            prefs[FOCUS_CHECKIN_END_KEY] = focusCheckInEndHour
+            prefs[TASK_NUDGE_ENABLED_KEY] = taskNudgeEnabled
+            prefs[TASK_NUDGE_HOUR_KEY] = taskNudgeHour
+            prefs[STREAK_PROTECTOR_ENABLED_KEY] = streakProtectorEnabled
+            prefs[STREAK_PROTECTOR_HOUR_KEY] = streakProtectorHour
+            prefs[MED_REMINDER_ENABLED_KEY] = medicationReminderEnabled
+            prefs[MED_REMINDER_HOUR_KEY] = medicationReminderHour
+            prefs[MED_REMINDER_MINUTE_KEY] = medicationReminderMinute
+            prefs[QUIET_HOURS_ENABLED_KEY] = quietHoursEnabled
+            prefs[QUIET_HOURS_START_KEY] = quietHoursStartHour
+            prefs[QUIET_HOURS_END_KEY] = quietHoursEndHour
         }
     }
 }
